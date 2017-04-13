@@ -1,0 +1,2 @@
+run-as org.fallenworld.darkgalgame
+./gdbserver :2333 --attach 5804

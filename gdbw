@@ -1,0 +1,14 @@
+#!/bin/bash
+
+export SDK_PLATFORM=~/dev/android/sdk/platform-tools
+export NDK=~/dev/android/ndk
+export PATH=$PATH:$SDK_PLATFORM:$NDK
+
+ANDROID_BUILD=~/dev/android/build
+GDB=$ANDROID_BUILD/bin/gdb
+GDB_CONNECTED_SOCKET=gdbConnected
+APPNAME=org.fallenworld.darkgalgame
+SCRIPT_PATH=$(cd $(dirname $0); pwd)
+
+$GDB $@
+
