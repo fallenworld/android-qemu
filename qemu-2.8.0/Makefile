@@ -165,6 +165,7 @@ dummy := $(call unnest-vars,, \
 
 all: $(DOCS) $(TOOLS) $(HELPERS-y) recurse-all modules
 
+
 qemu-version.h: FORCE
 	$(call quiet-command, \
 		(cd $(SRC_PATH); \
@@ -597,7 +598,7 @@ qemu-doc.dvi qemu-doc.html qemu-doc.info qemu-doc.pdf: \
 	qemu-img.texi qemu-nbd.texi qemu-options.texi qemu-option-trace.texi \
 	qemu-monitor.texi qemu-img-cmds.texi qemu-ga.texi \
 	qemu-monitor-info.texi
-
+	
 ifdef CONFIG_WIN32
 
 INSTALLER = qemu-setup-$(VERSION)$(EXESUF)

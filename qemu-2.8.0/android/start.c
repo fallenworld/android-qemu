@@ -3,7 +3,6 @@
 //
 
 #include <stdio.h>
-#include <stdlib.h>
 #include "start.h"
 #include "debug.h"
 
@@ -14,14 +13,8 @@ Java_org_fallenworld_darkgalgame_MainActivity_entry
         (JNIEnv *env, jobject thiz)
 {
     jniEnv = env;
-    int ret = initDebug();
+    initDebug();
     start();
-    char buffer[16];
-    if (ret != 0)
-    {
-        sprintf(buffer, "%d\0", ret);
-        return (*env)->NewStringUTF(env, buffer);
-    }
     return (*env)->NewStringUTF(env, "JNI end");
 }
 
@@ -33,7 +26,7 @@ JNIEnv *getEnv()
 
 int start()
 {
-    puts("log test\n");
+    print("log test\n");
     return 0;
 }
 

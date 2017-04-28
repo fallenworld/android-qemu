@@ -3,12 +3,11 @@
 #Created by fallenworld
 #email:fallenworlder@gmail.com
 
-export SDK_PLATFORM=~/dev/android/sdk/platform-tools
-export NDK=~/dev/android/sdk/ndk-bundle
-export PATH=$PATH:$SDK_PLATFORM:$NDK
-
+SDK=~/dev/android/sdk
+NDK=~/dev/android/ndk
 ANDROID_BUILD=~/dev/android/build
-PATH=$ANDROID_BUILD/bin:$PATH
+export PATH=$PATH:$SDK/platform-tools:$NDK:$ANDROID_BUILD/bin
+
 SYSROOT=$ANDROID_BUILD/sysroot
 HOST=arm-linux-androideabi
 CC=$HOST-gcc
@@ -21,15 +20,16 @@ PKG_CONFIG_PATH="$SYSROOT/usr/lib/pkgconfig"
 CONFLAGS="--prefix=${SYSROOT}/usr --cross-prefix=${HOST}- --host-cc=$CC --target-list=i386-linux-user --cpu=arm --disable-system --disable-bsd-user --disable-tools --disable-zlib-test --disable-guest-agent --disable-nettle --enable-debug"
 APPDIR=../DarkGalgame
 JNILIBSDIR=$APPDIR/app/src/main/jniLibs/armeabi-v7a
-NDK_PATH=~/dev/android/sdk/ndk-bundle
 APPNAME=org.fallenworld.darkgalgame
 SOLIB=qemu-2.8.0/i386-linux-user/qemu-i386
-GDBSERVER=$NDK_PATH/prebuilt/android-arm/gdbserver/gdbserver
+LOGMONITOR=qemu-2.8.0/android/logMonitor
+GDBSERVER=$NDK/prebuilt/android-arm/gdbserver/gdbserver
 GDB_PORT=2333
-DEBUG_PORT=45678
 PID=
 GDBSERVER_PID=
 SIG_END_DEBUG=SIGUSR1
+CONSOLE=konsole
+MONITOR_BUILD="$CC -o android/logMonitor android/logMonitor.c -Iinclude -pie"
 
 case $1 in
 
@@ -58,22 +58,27 @@ build|rebuild)
     then
         exit 1
     fi
+    $MONITOR_BUILD
     #cp -fv i386-linux-user/qemu-i386 ../$JNILIBSDIR/libqemu.so
     cp -fv i386-linux-user/qemu-i386 ../debugSysRoot/data/data/$APPNAME/libqemu.so
     cd ..
 
-    #Push dynamic lib and gdbserver
-    echo "Pushing libqemu.so to android target:"
+    #Push dynamic lib, gdb server, log monitor
+    echo "Pushing libqemu.so and logMonitor to android target:"
     adb push $SOLIB /data/local/tmp/libqemu.so
+    adb push $LOGMONITOR /data/local/tmp/logMonitor
+    adb shell chmod 777 /data/local/tmp/logMonitor
     if [ ! $(adb shell ls /data/local/tmp | grep gdbserver) ]
     then
         echo "Pushing gdbserver to android target:"
         adb push $GDBSERVER /data/local/tmp/gdbserver
     fi
     echo "run-as $APPNAME" > .adbShellCmd
-    echo "cat /data/local/tmp/libqemu.so > libqemu.so" >> .adbShellCmd
-    echo "cat /data/local/tmp/gdbserver > gdbserver" >> .adbShellCmd
+    echo "cp -fv /data/local/tmp/libqemu.so libqemu.so" >> .adbShellCmd
+    echo "cp -fv /data/local/tmp/logMonitor logMonitor" >> .adbShellCmd
+    echo "cp -fv /data/local/tmp/gdbserver gdbserver" >> .adbShellCmd
     echo "chmod 777 libqemu.so" >> .adbShellCmd
+    echo "chmod 777 logMonitor" >> .adbShellCmd
     echo "chmod 777 gdbserver" >> .adbShellCmd
     adb shell < .adbShellCmd
 ;;
@@ -114,13 +119,19 @@ stop)
     echo "run-as $APPNAME" > .adbShellCmd
     echo "kill -s SIGQUIT $GDBSERVER_PID" >> .adbShellCmd
     adb shell < .adbShellCmd
-    rm -rf .adbShellCmd
+
+    #Kill log monitor
+    echo "Stop log monitor"
+    LOGMONITOR_PID=$(adb shell ps | grep logMonitor | awk {'print $2'})
+    echo "run-as $APPNAME" > .adbShellCmd
+    echo "kill -s SIGQUIT $LOGMONITOR_PID" >> .adbShellCmd
+    adb shell < .adbShellCmd
 ;;
 
-debug)
-    adb forward tcp:$DEBUG_PORT tcp:$DEBUG_PORT
-    gnome-terminal -x ./debug.py
-
+log)
+    echo "run-as $APPNAME" > .adbShellCmd
+    echo "./logMonitor" >> .adbShellCmd
+    $CONSOLE -e bash -c 'adb shell < .adbShellCmd' &
 ;;
 esac
 

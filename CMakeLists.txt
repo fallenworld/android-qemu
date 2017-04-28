@@ -20,5 +20,5 @@ set(SOURCE_FILES
         qemu-2.8.0/android/debug.c
         qemu-2.8.0/android/debug.h
         qemu-2.8.0/android/start.c
-        qemu-2.8.0/android/start.h)
+        qemu-2.8.0/android/start.h qemu-2.8.0/android/logMonitor.c qemu-2.8.0/android/debugConfig.h)
 add_executable(qemu ${SOURCE_FILES})

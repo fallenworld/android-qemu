@@ -11,8 +11,17 @@
 //初始化调试模块
 int initDebug();
 
-//当PC端结束调试时所发送信号的信号处理函数
-void signalEndDebug(int sig);
+//初始化用于传输调试信息的socket连接
+int initSocket();
+
+//初始化log输出
+int initLog();
+
+//等待PC端的GDB连接上来
+void waitDebugConnect();
+
+//输出log
+void print(const char* format, ...);
 
 //显示对话框消息
 void alert(const char* message);

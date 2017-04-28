@@ -11,38 +11,35 @@
 #include <stdio.h>
 #include "debug.h"
 #include "start.h"
-
-#ifdef DEBUG_UNIX_SOCKET
-#define LOCAL_PREFIX    /data/data/
-#define PACKAGE_NAME    org.fallenworld.darkgalgame
-#define SOCKET_FILE     gdbConnected
-#define PATH_PREFIX     stringify(LOCAL_PREFIX) stringify(PACKAGE_NAME)
-#define SOCKET_PATH     PATH_PREFIX "/" stringify(SOCKET_FILE)
-#else
-#define DEBUG_PORT 45678
-#define GDB_WAIT_SECONDS 2
-#endif
+#include "debugConfig.h"
 
 static int deviceDebugFd = 0;
 static int hostDebugFd = 0;
 
 int initDebug()
 {
-    //设置结束调试信号的处理函数
-    //signal(SIG_END_DEBUG, signalEndDebug);
+    initSocket();
+    waitDebugConnect();
+    initLog();
+    sleep(GDB_WAIT_SECONDS);
+    return 0;
+}
+
+int initSocket()
+{
     //创建socket
-    deviceDebugFd = socket(AF_INET, SOCK_STREAM, 0);
+    deviceDebugFd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (deviceDebugFd < 0)
     {
         //alert("Init debug failed : Cannot create socket");
         return 1;
     }
-    struct sockaddr_in localAddress;
+    //unlink(SOCKET_PATH);
+    struct sockaddr_un localAddress;
     memset(&localAddress, 0, sizeof(localAddress));
-    localAddress.sin_family = AF_INET;
-    localAddress.sin_port = htons(DEBUG_PORT);
-    localAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-    if (bind(deviceDebugFd, (struct sockaddr*)&localAddress, sizeof(struct sockaddr_in)) < 0)
+    localAddress.sun_family = AF_UNIX;
+    strcpy(localAddress.sun_path, SOCKET_PATH);
+    if (bind(deviceDebugFd, (struct sockaddr*)&localAddress, sizeof(localAddress)) < 0)
     {
         close(deviceDebugFd);
         //alert("Init debug failed : Socket bind error");
@@ -54,15 +51,20 @@ int initDebug()
         //alert("Init debug failed : Socket listen error");
         return 3;
     }
-    //等待PC端连接上来
-    for (;;)
+    return 0;
+}
+
+void waitDebugConnect()
+{
+    while (1)
     {
+        //等待PC端连接上来
         hostDebugFd = accept(deviceDebugFd, NULL, NULL);
         if (hostDebugFd < 0)
         {
             continue;
         }
-        for (;;)
+        while (1)
         {
             //等待PC端发送确认信息
             const char *info = "DEBUG CONNECT";
@@ -75,30 +77,30 @@ int initDebug()
         }
     }
     endWait:
+    return;
+}
+
+int initLog()
+{
     //将标准输出、标准错误重定向
-    if (dup2(STDOUT_FILENO, hostDebugFd) > 0 &&
-        dup2(STDERR_FILENO, hostDebugFd) > 0)
+    if (dup2(hostDebugFd, STDOUT_FILENO) < 0 ||
+        dup2(hostDebugFd, STDERR_FILENO) < 0)
     {
-        //alert("Init debug failed : Cannot redirect stdout or stderr");
-        return 4;
+        //alert("Init log failed : Cannot redirect stdout or stderr");
+        return 1;
     }
-    sleep(GDB_WAIT_SECONDS);
     return 0;
 }
 
-void signalEndDebug(int sig)
+void print(const char* format, ...)
 {
-    //关闭和PC端通信的socket
-    if (hostDebugFd > 0)
-    {
-        close(hostDebugFd);
-    }
-    if (deviceDebugFd > 0)
-    {
-        close(deviceDebugFd);
-    }
-    exit(1);
+    va_list argList;
+    va_start(argList, format);
+    vprintf(format, argList);
+    fflush(stdout);
+    va_end(argList);
 }
+
 
 void alert(const char* message)
 {

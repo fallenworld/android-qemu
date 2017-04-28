@@ -51,4 +51,18 @@ Module.symvers
 Mkfile.old
 dkms.conf
 .idea/
+
+# Other files
 cmake-build-debug/
+.adbShellCmd
+.directory
+
+
+
+
+
+
+
+
+
+
