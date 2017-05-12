@@ -114,8 +114,8 @@ QEMU_CFLAGS+=-I$(SRC_PATH)/linux-user/$(TARGET_ABI_DIR) \
              -I$(SRC_PATH)/linux-user
 
 obj-y += linux-user/
-obj-y += android/debug.o android/start.o
 obj-y += gdbstub.o thunk.o user-exec.o
+obj-y += android/debug.o android/start.o android/peload.o
 
 endif #CONFIG_LINUX_USER
 

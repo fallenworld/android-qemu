@@ -131,7 +131,7 @@ stop)
 log)
     echo "run-as $APPNAME" > .adbShellCmd
     echo "./logMonitor" >> .adbShellCmd
-    $CONSOLE -e bash -c 'adb shell < .adbShellCmd' &
+    $CONSOLE --hold -e bash -c 'adb shell < .adbShellCmd' &
 ;;
 esac
 

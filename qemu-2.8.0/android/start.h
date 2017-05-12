@@ -7,6 +7,7 @@
 
 #include <jni.h>
 
+int main(int argc, char** argv, char** envp);
 int start();
 
 JNIEXPORT jstring JNICALL

@@ -15,10 +15,10 @@ include_directories(
         /home/fallenworld/dev/android/build/sysroot/usr/include/libpng12
 )
 
-set(SOURCE_FILES
-        qemu-2.8.0/linux-user/main.c
-        qemu-2.8.0/android/debug.c
-        qemu-2.8.0/android/debug.h
-        qemu-2.8.0/android/start.c
-        qemu-2.8.0/android/start.h qemu-2.8.0/android/logMonitor.c qemu-2.8.0/android/debugConfig.h)
+set(SOURCE_FILES )
+
+aux_source_directory(qemu-2.8.0/linux-user SOURCE_FILES)
+aux_source_directory(qemu-2.8.0 SOURCE_FILES)
+aux_source_directory(qemu-2.8.0/android SOURCE_FILES)
+
 add_executable(qemu ${SOURCE_FILES})

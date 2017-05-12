@@ -125,8 +125,8 @@ abi_ulong loader_build_argptr(int envc, int argc, abi_ulong sp,
 }
 
 int loader_exec(int fdexec, const char *filename, char **argv, char **envp,
-             struct target_pt_regs * regs, struct image_info *infop,
-             struct linux_binprm *bprm)
+               struct target_pt_regs * regs, struct image_info *infop,
+               struct linux_binprm *bprm)
 {
     int retval;
 
@@ -143,7 +143,8 @@ int loader_exec(int fdexec, const char *filename, char **argv, char **envp,
         if (bprm->buf[0] == 0x7f
                 && bprm->buf[1] == 'E'
                 && bprm->buf[2] == 'L'
-                && bprm->buf[3] == 'F') {
+                && bprm->buf[3] == 'F')
+        {
             retval = load_elf_binary(bprm, infop);
 #if defined(TARGET_HAS_BFLT)
         } else if (bprm->buf[0] == 'b'
@@ -152,12 +153,21 @@ int loader_exec(int fdexec, const char *filename, char **argv, char **envp,
                 && bprm->buf[3] == 'T') {
             retval = load_flt_binary(bprm, infop);
 #endif
-        } else {
+        }
+        else if (bprm->buf[0] == 'M'
+                && bprm->buf[1] == 'Z')
+        {
+            //PE格式文件
+            retval = load_pe_binary(bprm, infop);
+        }
+        else
+        {
             return -ENOEXEC;
         }
     }
 
-    if(retval>=0) {
+    if(retval>=0)
+    {
         /* success.  Initialize important registers */
         do_init_thread(regs, infop);
         return retval;

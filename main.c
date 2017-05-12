@@ -3946,7 +3946,9 @@ static int parse_args(int argc, char **argv)
     return optind;
 }
 
-int main(int argc, char **argv, char **envp)
+#include <android/debug.h>
+int runFile(int argc, char **argv, char **envp);
+int runFile(int argc, char **argv, char **envp)
 {
     struct target_pt_regs regs1, *regs = &regs1;
     struct image_info info1, *info = &info1;
@@ -4553,6 +4555,7 @@ int main(int argc, char **argv, char **envp)
         }
         gdb_handlesig(cpu, 0);
     }
+    print("CPUState address : %x\n", (uint32_t)(env));
     cpu_loop(env);
     /* never exits */
     return 0;

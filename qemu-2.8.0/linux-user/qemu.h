@@ -183,10 +183,15 @@ abi_ulong loader_build_argptr(int envc, int argc, abi_ulong sp,
                               abi_ulong stringp, int push_ptr);
 int loader_exec(int fdexec, const char *filename, char **argv, char **envp,
              struct target_pt_regs * regs, struct image_info *infop,
-             struct linux_binprm *);
+             struct linux_binprm *bprm);
 
 int load_elf_binary(struct linux_binprm *bprm, struct image_info *info);
+int load_pe_binary(struct linux_binprm *bprm, struct image_info *info);
 int load_flt_binary(struct linux_binprm *bprm, struct image_info *info);
+
+abi_ulong setup_arg_pages(struct linux_binprm *bprm, struct image_info *info);
+void zero_bss(abi_ulong elf_bss, abi_ulong last_bss, int prot);
+void probe_guest_base(const char *image_name, abi_ulong loaddr, abi_ulong hiaddr);
 
 abi_long memcpy_to_target(abi_ulong dest, const void *src,
                           unsigned long len);

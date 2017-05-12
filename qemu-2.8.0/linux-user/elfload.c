@@ -1425,7 +1425,7 @@ static abi_ulong copy_elf_strings(int argc, char **argv, char *scratch,
  */
 #define STACK_LOWER_LIMIT (32 * TARGET_PAGE_SIZE)
 
-static abi_ulong setup_arg_pages(struct linux_binprm *bprm,
+abi_ulong setup_arg_pages(struct linux_binprm *bprm,
                                  struct image_info *info)
 {
     abi_ulong size, error, guard;
@@ -1456,7 +1456,7 @@ static abi_ulong setup_arg_pages(struct linux_binprm *bprm,
 
 /* Map and zero the bss.  We need to explicitly zero any fractional pages
    after the data section (i.e. bss).  */
-static void zero_bss(abi_ulong elf_bss, abi_ulong last_bss, int prot)
+void zero_bss(abi_ulong elf_bss, abi_ulong last_bss, int prot)
 {
     uintptr_t host_start, host_map_start, host_end;
 
@@ -1745,7 +1745,7 @@ unsigned long init_guest_space(unsigned long host_start,
     return real_start;
 }
 
-static void probe_guest_base(const char *image_name,
+void probe_guest_base(const char *image_name,
                              abi_ulong loaddr, abi_ulong hiaddr)
 {
     /* Probe for a suitable guest base address, if the user has not set
@@ -1825,9 +1825,9 @@ static void load_elf_image(const char *image_name, int image_fd,
         goto exit_errmsg;
     }
 
-    i = ehdr->e_phnum * sizeof(struct elf_phdr);
+    i = ehdr->e_phnum * sizeof(struct elf_phdr);   //i=程序头表的大小
     if (ehdr->e_phoff + i <= BPRM_BUF_SIZE) {
-        phdr = (struct elf_phdr *)(bprm_buf + ehdr->e_phoff);
+        phdr = (struct elf_phdr *)(bprm_buf + ehdr->e_phoff); //phdr:程序头表的起始地址
     } else {
         phdr = (struct elf_phdr *) alloca(i);
         retval = pread(image_fd, phdr, i, ehdr->e_phoff);
@@ -1846,7 +1846,7 @@ static void load_elf_image(const char *image_name, int image_fd,
 
     /* Find the maximum size of the image and allocate an appropriate
        amount of memory to handle that.  */
-    loaddr = -1, hiaddr = 0;
+    loaddr = -1, hiaddr = 0;    //loaddr和hiaddr:文件加载段映射到内存里的最低地址和最高地址
     for (i = 0; i < ehdr->e_phnum; ++i) {
         if (phdr[i].p_type == PT_LOAD) {
             abi_ulong a = phdr[i].p_vaddr - phdr[i].p_offset;
@@ -1864,7 +1864,7 @@ static void load_elf_image(const char *image_name, int image_fd,
     }
 
     load_addr = loaddr;
-    if (ehdr->e_type == ET_DYN) {
+    if (ehdr->e_type == ET_DYN) {   //动态链接库的加载
         /* The image indicates that it can be loaded anywhere.  Find a
            location that can hold the memory space required.  If the
            image is pre-linked, LOADDR will be non-zero.  Since we do
@@ -1915,9 +1915,9 @@ static void load_elf_image(const char *image_name, int image_fd,
     info->brk = 0;
     info->elf_flags = ehdr->e_flags;
 
-    for (i = 0; i < ehdr->e_phnum; i++) {
+    for (i = 0; i < ehdr->e_phnum; i++) {   //遍历程序头表进行加载
         struct elf_phdr *eppnt = phdr + i;
-        if (eppnt->p_type == PT_LOAD) {
+        if (eppnt->p_type == PT_LOAD) { //加载段
             abi_ulong vaddr, vaddr_po, vaddr_ps, vaddr_ef, vaddr_em;
             int elf_prot = 0;
 
@@ -1957,7 +1957,7 @@ static void load_elf_image(const char *image_name, int image_fd,
                 if (vaddr < info->start_data) {
                     info->start_data = vaddr;
                 }
-                if (vaddr_ef > info->end_data) {
+                if (vaddr_ef > info   ->end_data) {
                     info->end_data = vaddr_ef;
                 }
                 if (vaddr_em > info->brk) {
