@@ -1,2 +1,2 @@
 run-as org.fallenworld.darkgalgame
-kill -s SIGQUIT 
+./logMonitor

@@ -1425,7 +1425,7 @@ static abi_ulong copy_elf_strings(int argc, char **argv, char *scratch,
  */
 #define STACK_LOWER_LIMIT (32 * TARGET_PAGE_SIZE)
 
-abi_ulong setup_arg_pages(struct linux_binprm *bprm,
+static abi_ulong setup_arg_pages(struct linux_binprm *bprm,
                                  struct image_info *info)
 {
     abi_ulong size, error, guard;
@@ -1456,7 +1456,7 @@ abi_ulong setup_arg_pages(struct linux_binprm *bprm,
 
 /* Map and zero the bss.  We need to explicitly zero any fractional pages
    after the data section (i.e. bss).  */
-void zero_bss(abi_ulong elf_bss, abi_ulong last_bss, int prot)
+static void zero_bss(abi_ulong elf_bss, abi_ulong last_bss, int prot)
 {
     uintptr_t host_start, host_map_start, host_end;
 

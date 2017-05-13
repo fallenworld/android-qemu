@@ -101,7 +101,6 @@ void print(const char* format, ...)
     va_end(argList);
 }
 
-
 void alert(const char* message)
 {
     JNIEnv *jniEnv = getEnv();
@@ -130,4 +129,12 @@ void alert(const char* message)
     //调用方法
     jstring str = (*jniEnv)->NewStringUTF(jniEnv, message);
     (*jniEnv)->CallStaticVoidMethod(jniEnv, clazz, alertMethodId, str);
+}
+
+#define PATH_PREFIX_END qemu-2.8.0
+void printFileLine(const char* fullFileName, int line)
+{
+    char* shortFileName = strstr(fullFileName, stringify(PATH_PREFIX_END))
+                          + strlen(stringify(PATH_PREFIX_END)) + 1;
+    print("%s(%d) ", shortFileName, line);
 }

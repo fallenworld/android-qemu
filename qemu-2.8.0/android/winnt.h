@@ -17,10 +17,11 @@ typedef unsigned long long ULONGLONG;
 //
 // Image Format
 //
-#define IMAGE_DOS_SIGNATURE                 0x4D5A      // MZ
-#define IMAGE_OS2_SIGNATURE                 0x4E45      // NE
-#define IMAGE_OS2_SIGNATURE_LE              0x4C45      // LE
-#define IMAGE_NT_SIGNATURE                  0x50450000  // PE00
+#define IMAGE_DOS_SIGNATURE                 0x5A4D      // MZ
+#define IMAGE_OS2_SIGNATURE                 0x454E      // NE
+#define IMAGE_OS2_SIGNATURE_LE              0x454C      // LE
+#define IMAGE_VXD_SIGNATURE                 0x454C      // LE
+#define IMAGE_NT_SIGNATURE                  0x00004550  // PE00
 
 typedef struct _IMAGE_DOS_HEADER {      // DOS .EXE header
     WORD   e_magic;                     // Magic number

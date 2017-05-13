@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "debug.h"
 #include "qemu/osdep.h"
 #include "linux-user/qemu.h"
 #include "winnt.h"
@@ -14,37 +15,150 @@
 
 #define TARGET_PAGESTART(_v) ((_v) & ~(abi_ulong)(TARGET_PAGE_SIZE-1))
 #define TARGET_PAGEOFFSET(_v) ((_v) & (TARGET_PAGE_SIZE-1))
-
-/* Older linux kernels provide up to MAX_ARG_PAGES (default: 32) of
- * argument/environment space. Newer kernels (>2.6.33) allow more,
- * dependent on stack size, but guarantee at least 32 pages for
- * backwards compatibility.
- */
-#define STACK_LOWER_LIMIT (32 * TARGET_PAGE_SIZE)
+#define TARGET_PAGE_ALIGN(addr) (((addr) + TARGET_PAGE_SIZE - 1) & TARGET_PAGE_MASK)
 
 static int pe_check(IMAGE_DOS_HEADER* dosHeader)
 {
     if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE)
     {
+        printLineNum();
+        print("not a DOS Header\n");
         return 0;
     }
     IMAGE_NT_HEADERS* ntHeaders = (IMAGE_NT_HEADERS*)((uint)dosHeader + dosHeader->e_lfanew);
     if ((ntHeaders->Signature != IMAGE_NT_SIGNATURE)
         | (ntHeaders->FileHeader.Machine != IMAGE_FILE_MACHINE_I386))
     {
+        printLineNum();
+        print("not a NT image or wrong architecture\n");
         return 0;
     }
     return 1;
 }
 
-int create_pe_table()
+static abi_ulong setup_arg_pages(struct linux_binprm *bprm,
+                                 struct image_info *info,
+                                 char* headerBuffer)
 {
+    abi_ulong size, retval, guard;
+    IMAGE_DOS_HEADER* dosHeader = (IMAGE_DOS_HEADER*)(headerBuffer);
+    IMAGE_NT_HEADERS* ntHeader = (IMAGE_NT_HEADERS*)(headerBuffer + dosHeader->e_lfanew);
+    size = ntHeader->OptionalHeader.SizeOfStackReserve;
+    guard = TARGET_PAGE_SIZE;
+    if (guard < qemu_real_host_page_size)
+    {
+        guard = qemu_real_host_page_size;
+    }
+    retval = target_mmap(0, size + guard, PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (retval == -1)
+    {
+        printLineNum();
+        perror("mmap stack");
+        exit(-1);
+    }
+    /* We reserve one extra page at the top of the stack as guard.  */
+    target_mprotect(retval, guard, PROT_NONE);
+    info->stack_limit = retval + guard;
+    return info->stack_limit + size - sizeof(void *);
+}
 
+static abi_ulong create_pe_tables(struct linux_binprm *bprm, struct image_info *info, char* headBuffer)
+{
+    return bprm->p;
+}
+
+/**
+ * 将PE文件的一个段加载到内存
+ * @param section 要加载的段在PE文件中的段表项
+ * @param baseAddress PE文件加载到的基址
+ * @param fd 要加载的文件的文件描述符
+ * @return 若加载成功，则返回0；失败返回-1
+ */
+int map_section(IMAGE_SECTION_HEADER* section, abi_ulong baseAddress, int fd)
+{
+    int sectionProperty = 0;
+    //段属性
+    if (section->Characteristics & IMAGE_SCN_MEM_READ) sectionProperty = PROT_READ;
+    if (section->Characteristics & IMAGE_SCN_MEM_WRITE) sectionProperty |= PROT_WRITE;
+    if (section->Characteristics & IMAGE_SCN_MEM_EXECUTE) sectionProperty |= PROT_EXEC;
+    //段在内存中的一些相关地址
+    //TODO:两个段的起始和结束在同一个内存页里怎么办？
+    abi_ulong address = baseAddress + section->VirtualAddress; //段的加载地址
+    abi_ulong addressRawEnd = address + section->SizeOfRawData;         //根据段在文件中的大小计算出的段末地址
+    abi_ulong addressRealEnd = TARGET_PAGE_ALIGN(
+            MAX(addressRawEnd, address + section->Misc.VirtualSize));   //段的实际末地址
+    if (addressRawEnd < addressRealEnd)
+    {
+        sectionProperty |= PROT_WRITE;
+    }
+    //把段映射进内存
+    long retval;
+    if (section->PointerToRawData % TARGET_PAGE_SIZE == 0)
+    {
+        /* 若段在文件中的偏移量是页的整数倍，则直接进行文件映射 */
+        retval = target_mmap(address, addressRealEnd - address,
+                             sectionProperty, MAP_PRIVATE | MAP_FIXED, fd,
+                             section->PointerToRawData);
+        if (retval < 0)
+        {
+            printLineNum();
+            print("cannot map section %s : %s\n", section->Name, strerror(errno));
+            return -1;
+        }
+    }
+    else
+    {
+        /* 段在文件中的偏移不是页大小的整数倍，无法进行内存映射
+         * 需要将文件内容读取后复制到内存 */
+        //分配段所需的内存块
+        retval = target_mmap(address, addressRealEnd - address,  sectionProperty | PROT_WRITE,
+                             MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
+        if (retval < 0)
+        {
+            printLineNum();
+            print("cannot map section %s : %s\n", section->Name, strerror(errno));
+            return -1;
+        }
+        //读取文件内容并复制到内存
+        char buffer[TARGET_PAGE_SIZE];
+        retval = lseek(fd, section->PointerToRawData, SEEK_SET);
+        if (retval < 0)
+        {
+            printLineNum();
+            print("cannot load section %s, seek file failed : %s\n",
+                    section->Name, strerror(errno));
+            return -1;
+        }
+        int offset = 0;
+        while (offset < section->SizeOfRawData)
+        {
+            int size = read(fd, buffer, TARGET_PAGE_SIZE);
+            if (size > 0)
+            {
+                memcpy_to_target(address + offset, buffer, size);
+                offset += size;
+            }
+            else if (size < 0)
+            {
+                printLineNum();
+                print("cannot read section %s, read file failed : %s\n",
+                      section->Name, strerror(errno));
+                return -1;
+            }
+        }
+    }
+    //若段映射到内存后的大小比段在文件中大，则填充0到末尾
+    if (addressRawEnd < addressRealEnd)
+    {
+        memset((void*)addressRawEnd, 0, addressRealEnd - addressRawEnd);
+    }
+    return 0;
 }
 
 int load_pe_image(const char* filename, int fd, struct image_info* info, char* headerBuffer)
 {
-    int retval;
+    long retval;
     int i;
     abi_ulong lowAddress = (abi_ulong)-1;  //文件加载后的最低地址
     abi_ulong highAddress = 0;  //文件加载后的最高地址
@@ -53,8 +167,8 @@ int load_pe_image(const char* filename, int fd, struct image_info* info, char* h
     //判断是否是合法的PE文件
     if (!pe_check((IMAGE_DOS_HEADER*)(headerBuffer)))
     {
-        const char* errorMessage = "Invalid PE image for this architecture";
-        fprintf(stderr, "%s: %s\n", filename, errorMessage);
+        printLineNum();
+        print("%s is not a valid PE file\n", filename);
         exit(-1);
     }
     //PE文件的DOS头、NT头、段表
@@ -62,23 +176,10 @@ int load_pe_image(const char* filename, int fd, struct image_info* info, char* h
     IMAGE_NT_HEADERS* ntHeader = (IMAGE_NT_HEADERS*)(headerBuffer + dosHeader->e_lfanew);
     IMAGE_SECTION_HEADER* sectionTable = (IMAGE_SECTION_HEADER*)((uint)ntHeader + sizeof(IMAGE_NT_HEADERS));
     //获取到文件映射到内存中后的最低和最高地址
-    for (i = 0; i < ntHeader->FileHeader.NumberOfSections; ++i)
-    {
-        abi_ulong address = sectionTable[i].VirtualAddress - sectionTable[i].PointerToRawData;
-        if (address < lowAddress)
-        {
-            lowAddress = address;
-        }
-        address = sectionTable[i].VirtualAddress + sectionTable[i].SizeOfRawData;
-        if (address > highAddress)
-        {
-            highAddress = address;
-        }
-    }
-    //文件加载到内存中后的一些地址信息
     mmap_lock();
-    loadAddress = lowAddress;
-    loadBias = loadAddress - lowAddress; //TODO: ???.jpg
+    loadAddress = ntHeader->OptionalHeader.ImageBase;
+    lowAddress = loadAddress;
+    highAddress = loadAddress + ntHeader->OptionalHeader.SizeOfImage;
     //检测文件映射的虚拟地址范围是否可用
     if (ntHeader->FileHeader.Characteristics & IMAGE_FILE_EXECUTABLE_IMAGE)
     {
@@ -86,11 +187,12 @@ int load_pe_image(const char* filename, int fd, struct image_info* info, char* h
     }
     else if(1)
     {
-        //TODO : DLL
+        //TODO : 动态链接库
     }
+    loadBias = loadAddress - lowAddress;    //TODO: 装载发生偏移的话
     info->load_bias = loadBias;
     info->load_addr = loadAddress;
-    info->entry = ntHeader->OptionalHeader.AddressOfEntryPoint + loadBias;
+    info->entry = ntHeader->OptionalHeader.AddressOfEntryPoint + loadAddress;
     info->start_code = (abi_ulong)-1;
     info->end_code = 0;
     info->start_data = (abi_ulong)-1;
@@ -99,80 +201,50 @@ int load_pe_image(const char* filename, int fd, struct image_info* info, char* h
     //根据段表进行加载
     for (i = 0; i < ntHeader->FileHeader.NumberOfSections; ++i)
     {
-        IMAGE_SECTION_HEADER *loadSection = sectionTable + i;
-        int sectionProperty = 0;
-        //段属性
-        if (loadSection->Characteristics & IMAGE_SCN_MEM_READ) sectionProperty = PROT_READ;
-        if (loadSection->Characteristics & IMAGE_SCN_MEM_WRITE) sectionProperty |= PROT_WRITE;
-        if (loadSection->Characteristics & IMAGE_SCN_MEM_EXECUTE) sectionProperty |= PROT_EXEC;
-        //段在内存中的一些相关地址
-        abi_ulong address = loadBias + loadSection->VirtualAddress; //段的加载地址
-        abi_ulong addressPageStart = TARGET_PAGESTART(address);     //段加载基址的页起始地址
-        abi_ulong addressPageOffset = TARGET_PAGEOFFSET(address);   //段基址相对于页起始地址的偏移量
-        abi_ulong addressRawEnd = address + loadSection->SizeOfRawData;     //根据段在文件中的大小计算出的段末地址
-        abi_ulong addressRealEnd = address + loadSection->Misc.VirtualSize;   //段的实际末地址
-        //把段映射进内存
-        retval = target_mmap(addressPageStart, loadSection->SizeOfRawData + addressPageOffset,
-                             sectionProperty, MAP_PRIVATE | MAP_FIXED, fd,
-                             loadSection->PointerToRawData - addressPageOffset);
-        if (retval < 0) {
-            fprintf(stderr, "%s: %s\n", filename, strerror(errno));
+        if (map_section(sectionTable + i, loadAddress, fd) < 0)
+        {
+            printLineNum();
+            print("cannot load file %s, section map failed\n", filename);
             exit(-1);
         }
-        //若为bss段，则需要映射一段0进去
-        if (addressRawEnd < addressRealEnd) {
-            zero_bss(addressRawEnd, addressRealEnd, sectionProperty);
-        }
-        //获取到程序在内存中分布的一些边界
-        if (sectionProperty & PROT_EXEC) {
-            if (address < info->start_code) {
-                info->start_code = address;
-            }
-            if (addressRawEnd > info->end_code) {
-                info->end_code = addressRawEnd;
-            }
-        }
-        if (sectionProperty & PROT_WRITE) {
-            if (address < info->start_data) {
-                info->start_data = address;
-            }
-            if (addressRawEnd > info->end_data) {
-                info->end_data = addressRawEnd;
-            }
-            if (addressRealEnd > info->brk) {
-                info->brk = addressRealEnd;
-            }
-        }
     } //end for
+    //获取到程序在内存中分布的一些边界
+    info->start_code = loadAddress + ntHeader->OptionalHeader.BaseOfCode;
+    info->end_code = info->start_code + ntHeader->OptionalHeader.SizeOfCode;
+    info->start_data = loadAddress + ntHeader->OptionalHeader.BaseOfData;
+    info->end_data = info->start_data
+                     + ntHeader->OptionalHeader.SizeOfInitializedData
+                     + ntHeader->OptionalHeader.SizeOfUninitializedData;
     if (info->end_data == 0)
     {
         info->start_data = info->end_code;
         info->end_data = info->end_code;
-        info->brk = info->end_code;
     }
+    info->brk = loadBias + highAddress;
     //TODO:LOAD SYMBOLS
     mmap_unlock();
     close(fd);
     return 0;
 }
 
-
 int load_pe_binary(struct linux_binprm *bprm, struct image_info *info)
 {
     int retval;
     //读取文件第一个页，包含了文件头、段表
     char headerBuffer[HEADER_BUFFER_SIZE];
-    char headerBufferCopy[HEADER_BUFFER_SIZE];
-    retval = read(bprm->fd, headerBuffer, HEADER_BUFFER_SIZE);
+    retval = pread(bprm->fd, headerBuffer, HEADER_BUFFER_SIZE, 0);
     if (retval < 0)
     {
+        printLineNum();
         perror("Cannot read PE file");
         exit(-1);
     }
-    memcpy(headerBufferCopy, headerBuffer, HEADER_BUFFER_SIZE);
     //读取文件，将文件映射进内存
     load_pe_image(bprm->filename, bprm->fd, info, headerBuffer);
     //分配栈空间
-    bprm->p = setup_arg_pages(bprm, info);
-
+    bprm->p = setup_arg_pages(bprm, info, headerBuffer);
+    //将参数、环境变量复制到栈空间
+    bprm->p= create_pe_tables(bprm, info, headerBuffer);
+    info->start_stack = bprm->p;
+    return 0;
 }

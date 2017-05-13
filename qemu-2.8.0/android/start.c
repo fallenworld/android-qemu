@@ -28,12 +28,14 @@ JNIEnv *getEnv()
 
 int runFile(int argc, char** argv, char** envp)
 {
-    main(argc, argv, envp);
+    return main(argc, argv, envp);
 }
 
 int start()
 {
-    char* executable = "/data/data/org.fallenworld.darkgalgame/helloworld";
+    print("HOST PAGE SIZE : %d\n\n", sysconf(_SC_PAGE_SIZE));
+
+    char* executable = "/data/data/org.fallenworld.darkgalgame/HelloWorld.exe";
     int argc = 6;
     char* argv[] = {"qemu-i386", "-L", ANDROID_INTERP_PREFIX, "-d",
                     "in_asm,out_asm,int,guest_errors,exec,page", executable};

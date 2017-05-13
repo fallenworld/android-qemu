@@ -189,8 +189,6 @@ int load_elf_binary(struct linux_binprm *bprm, struct image_info *info);
 int load_pe_binary(struct linux_binprm *bprm, struct image_info *info);
 int load_flt_binary(struct linux_binprm *bprm, struct image_info *info);
 
-abi_ulong setup_arg_pages(struct linux_binprm *bprm, struct image_info *info);
-void zero_bss(abi_ulong elf_bss, abi_ulong last_bss, int prot);
 void probe_guest_base(const char *image_name, abi_ulong loaddr, abi_ulong hiaddr);
 
 abi_long memcpy_to_target(abi_ulong dest, const void *src,
