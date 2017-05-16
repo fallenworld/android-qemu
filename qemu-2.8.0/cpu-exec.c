@@ -34,13 +34,7 @@
 #endif
 #include "sysemu/replay.h"
 
-/* -icount align implementation. */
-
-typedef struct SyncClocks {
-    int64_t diff_clk;
-    int64_t last_cpu_icount;
-    int64_t realtime_clock;
-} SyncClocks;
+#include "android/android.h"
 
 #if !defined(CONFIG_USER_ONLY)
 /* Allow the guest to have a max 3ms advance.
@@ -328,6 +322,11 @@ static inline TranslationBlock *tb_find(CPUState *cpu,
                  tb->flags != flags)) {
         tb = tb_htable_lookup(cpu, pc, cs_base, flags);
         if (!tb) {
+            if (pc > FUNCTION_BASE)
+            {
+                //调用ARM实现的函数
+                return getArmTB(pc);
+            }
 
             /* mmap_lock is needed by tb_gen_code, and mmap_lock must be
              * taken outside tb_lock. As system emulation is currently
@@ -540,6 +539,13 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
         return;
     }
 
+    //执行ARM函数
+    if (IS_ARM_FUNCTION(tb))
+    {
+        executeArmTB(tb);
+        return;
+    }
+
     trace_exec_tb(tb, tb->pc);
     ret = cpu_tb_exec(cpu, tb);
     *last_tb = (TranslationBlock *)(ret & ~TB_EXIT_MASK);
@@ -631,6 +637,8 @@ int cpu_exec(CPUState *cpu)
             if (cpu_handle_exception(cpu, &ret)) {
                 break;
             }
+
+            apiCallInit(cpu->env_ptr, &sc, &last_tb);
 
             for(;;) {
                 cpu_handle_interrupt(cpu, &last_tb);

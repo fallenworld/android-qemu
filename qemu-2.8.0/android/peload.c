@@ -6,10 +6,9 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include "loader.h"
 #include "debug.h"
-#include "qemu/osdep.h"
-#include "linux-user/qemu.h"
-#include "winnt.h"
 
 #define HEADER_BUFFER_SIZE 4096
 
@@ -68,24 +67,18 @@ static abi_ulong create_pe_tables(struct linux_binprm *bprm, struct image_info *
     return bprm->p;
 }
 
-/**
- * 将PE文件的一个段加载到内存
- * @param section 要加载的段在PE文件中的段表项
- * @param baseAddress PE文件加载到的基址
- * @param fd 要加载的文件的文件描述符
- * @return 若加载成功，则返回0；失败返回-1
- */
 int map_section(IMAGE_SECTION_HEADER* section, abi_ulong baseAddress, int fd)
 {
+    long retval;
     int sectionProperty = 0;
     //段属性
     if (section->Characteristics & IMAGE_SCN_MEM_READ) sectionProperty = PROT_READ;
-    if (section->Characteristics & IMAGE_SCN_MEM_WRITE) sectionProperty |= PROT_WRITE;
     if (section->Characteristics & IMAGE_SCN_MEM_EXECUTE) sectionProperty |= PROT_EXEC;
+    sectionProperty |= PROT_WRITE;
     //段在内存中的一些相关地址
     //TODO:两个段的起始和结束在同一个内存页里怎么办？
-    abi_ulong address = baseAddress + section->VirtualAddress; //段的加载地址
-    abi_ulong addressRawEnd = address + section->SizeOfRawData;         //根据段在文件中的大小计算出的段末地址
+    abi_ulong address = baseAddress + section->VirtualAddress;  //段的加载地址
+    abi_ulong addressRawEnd = address + section->SizeOfRawData; //根据段在文件中的大小计算出的段末地址
     abi_ulong addressRealEnd = TARGET_PAGE_ALIGN(
             MAX(addressRawEnd, address + section->Misc.VirtualSize));   //段的实际末地址
     if (addressRawEnd < addressRealEnd)
@@ -93,7 +86,6 @@ int map_section(IMAGE_SECTION_HEADER* section, abi_ulong baseAddress, int fd)
         sectionProperty |= PROT_WRITE;
     }
     //把段映射进内存
-    long retval;
     if (section->PointerToRawData % TARGET_PAGE_SIZE == 0)
     {
         /* 若段在文件中的偏移量是页的整数倍，则直接进行文件映射 */
@@ -103,7 +95,7 @@ int map_section(IMAGE_SECTION_HEADER* section, abi_ulong baseAddress, int fd)
         if (retval < 0)
         {
             printLineNum();
-            print("cannot map section %s : %s\n", section->Name, strerror(errno));
+            print("can't map section %s : %s\n", section->Name, strerror(errno));
             return -1;
         }
     }
@@ -117,7 +109,7 @@ int map_section(IMAGE_SECTION_HEADER* section, abi_ulong baseAddress, int fd)
         if (retval < 0)
         {
             printLineNum();
-            print("cannot map section %s : %s\n", section->Name, strerror(errno));
+            print("can't map section %s : %s\n", section->Name, strerror(errno));
             return -1;
         }
         //读取文件内容并复制到内存
@@ -126,7 +118,7 @@ int map_section(IMAGE_SECTION_HEADER* section, abi_ulong baseAddress, int fd)
         if (retval < 0)
         {
             printLineNum();
-            print("cannot load section %s, seek file failed : %s\n",
+            print("can't load section %s, seek file failed : %s\n",
                     section->Name, strerror(errno));
             return -1;
         }
@@ -142,7 +134,7 @@ int map_section(IMAGE_SECTION_HEADER* section, abi_ulong baseAddress, int fd)
             else if (size < 0)
             {
                 printLineNum();
-                print("cannot read section %s, read file failed : %s\n",
+                print("can't read section %s, read file failed : %s\n",
                       section->Name, strerror(errno));
                 return -1;
             }
@@ -169,7 +161,7 @@ int load_pe_image(const char* filename, int fd, struct image_info* info, char* h
     {
         printLineNum();
         print("%s is not a valid PE file\n", filename);
-        exit(-1);
+        return -1;
     }
     //PE文件的DOS头、NT头、段表
     IMAGE_DOS_HEADER* dosHeader = (IMAGE_DOS_HEADER*)(headerBuffer);
@@ -201,11 +193,12 @@ int load_pe_image(const char* filename, int fd, struct image_info* info, char* h
     //根据段表进行加载
     for (i = 0; i < ntHeader->FileHeader.NumberOfSections; ++i)
     {
-        if (map_section(sectionTable + i, loadAddress, fd) < 0)
+        retval = map_section(sectionTable + i, loadAddress, fd);
+        if (retval < 0)
         {
             printLineNum();
-            print("cannot load file %s, section map failed\n", filename);
-            exit(-1);
+            print("can't load file %s, section map failed\n", filename);
+            return -1;
         }
     } //end for
     //获取到程序在内存中分布的一些边界
@@ -236,15 +229,30 @@ int load_pe_binary(struct linux_binprm *bprm, struct image_info *info)
     if (retval < 0)
     {
         printLineNum();
-        perror("Cannot read PE file");
-        exit(-1);
+        perror("can't read PE file");
+        return -1;
     }
     //读取文件，将文件映射进内存
-    load_pe_image(bprm->filename, bprm->fd, info, headerBuffer);
+    retval = load_pe_image(bprm->filename, bprm->fd, info, headerBuffer);
     //分配栈空间
     bprm->p = setup_arg_pages(bprm, info, headerBuffer);
     //将参数、环境变量复制到栈空间
     bprm->p= create_pe_tables(bprm, info, headerBuffer);
     info->start_stack = bprm->p;
+    //解析所依赖的动态链接库
+    retval = linkerInit();
+    if (retval < 0)
+    {
+        printLineNum();
+        print("can't init linker\n");
+        return -1;
+    }
+    retval = resolveModule(bprm, info, headerBuffer);
+    if (retval < 0)
+    {
+        printLineNum();
+        perror("can't load dependent modules");
+        return -1;
+    }
     return 0;
 }

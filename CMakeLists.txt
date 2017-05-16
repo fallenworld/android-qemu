@@ -15,7 +15,7 @@ include_directories(
         /home/fallenworld/dev/android/build/sysroot/usr/include/libpng12
 )
 
-set(SOURCE_FILES )
+set(SOURCE_FILES qemu-2.8.0/android/linker.c qemu-2.8.0/android/android.h qemu-2.8.0/android/winapi.h qemu-2.8.0/android/loader.h qemu-2.8.0/android/apicall.c)
 
 aux_source_directory(qemu-2.8.0/linux-user SOURCE_FILES)
 aux_source_directory(qemu-2.8.0 SOURCE_FILES)

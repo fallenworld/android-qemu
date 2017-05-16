@@ -3,9 +3,7 @@
 //
 
 #include <unistd.h>
-#include "start.h"
-#include "debug.h"
-#include "config.h"
+#include "android.h"
 
 int runFile(int argc, char **argv, char **envp);
 
@@ -33,13 +31,13 @@ int runFile(int argc, char** argv, char** envp)
 
 int start()
 {
-    print("HOST PAGE SIZE : %d\n\n", sysconf(_SC_PAGE_SIZE));
+    print("HOST PAGE SIZE : %d\n", sysconf(_SC_PAGE_SIZE));
 
-    char* executable = "/data/data/org.fallenworld.darkgalgame/HelloWorld.exe";
+    const char* executable = "/data/data/org.fallenworld.darkgalgame/HelloWorld.exe";
     int argc = 6;
-    char* argv[] = {"qemu-i386", "-L", ANDROID_INTERP_PREFIX, "-d",
+    const char* argv[] = {"qemu-i386", "-L", ANDROID_INTERP_PREFIX, "-d",
                     "in_asm,out_asm,int,guest_errors,exec,page", executable};
-    runFile(argc, argv, environ);
+    runFile(argc, (char**)argv, environ);
     return 0;
 }
 

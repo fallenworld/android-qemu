@@ -38,7 +38,7 @@
 #include "trace/control.h"
 #include "glib-compat.h"
 
-#include <android/config.h>
+#include "android/android.h"
 
 char *exec_path;
 
@@ -4189,6 +4189,7 @@ int main(int argc, char **argv, char **envp)
     target_set_brk(info->brk);
     syscall_init();
     signal_init();
+
 
     /* Now that we've loaded the binary, GUEST_BASE is fixed.  Delay
        generating the prologue until now so that the prologue can take

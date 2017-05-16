@@ -186,7 +186,6 @@ int loader_exec(int fdexec, const char *filename, char **argv, char **envp,
              struct linux_binprm *bprm);
 
 int load_elf_binary(struct linux_binprm *bprm, struct image_info *info);
-int load_pe_binary(struct linux_binprm *bprm, struct image_info *info);
 int load_flt_binary(struct linux_binprm *bprm, struct image_info *info);
 
 void probe_guest_base(const char *image_name, abi_ulong loaddr, abi_ulong hiaddr);

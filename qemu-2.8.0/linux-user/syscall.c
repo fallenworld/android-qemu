@@ -332,7 +332,7 @@ int clock_adjtime(const struct timeval *delta, struct timeval *olddelta)
 
 #define CLONE_THREAD_FLAGS                              \
     (CLONE_VM | CLONE_FS | CLONE_FILES |                \
-     CLONE_SIGHAND | CLONE_THREAD | CLONE_SYSVSEM)
+     CLONE_SIGHAND  | CLONE_THREAD | CLONE_SYSVSEM)
 
 /* These flags are ignored:
  * CLONE_DETACHED is now ignored by the kernel;

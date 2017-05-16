@@ -5,10 +5,8 @@
 #ifndef QEMU_ANDROID_DEBUG_H
 #define QEMU_ANDROID_DEBUG_H
 
-#define TRACE_ARG __FILE__,__LINE__
-
-//PC端结束调试时所的发送信号
-#define SIG_END_DEBUG SIGUSR1
+#include "config.h"
+#include "qemu/compiler.h"
 
 //初始化调试模块
 int initDebug();

@@ -6,12 +6,8 @@
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <netinet/in.h>
-#include <jni.h>
 #include <stdio.h>
-#include "debug.h"
-#include "start.h"
-#include "debugConfig.h"
+#include "android.h"
 
 static int deviceDebugFd = 0;
 static int hostDebugFd = 0;

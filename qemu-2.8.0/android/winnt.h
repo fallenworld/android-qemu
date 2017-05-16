@@ -2,16 +2,17 @@
 // Created by fallenworld on 17-5-11.
 //
 
-#ifndef QEMU_ANDROID_PE_H
-#define QEMU_ANDROID_PE_H
+#ifndef QEMU_ANDROID_WINNT_H
+#define QEMU_ANDROID_WINNT_H
 
 #include <stdint.h>
 
 typedef uint32_t    DWORD;
 typedef uint16_t    WORD;
 typedef uint8_t     BYTE;
-typedef long        LONG;
-typedef short       SHORT;
+typedef char    CHAR;
+typedef short   SHORT;
+typedef long    LONG;
 typedef unsigned long long ULONGLONG;
 
 //
@@ -517,4 +518,56 @@ typedef struct _IMAGE_SYMBOL_EX {
 #define IMAGE_SYM_CLASS_CLR_TOKEN           0x006B
 
 
-#endif //QEMU_ANDROID_PE_H
+typedef struct _IMAGE_IMPORT_DESCRIPTOR {
+    union {
+        DWORD   Characteristics;            // 0 for terminating null import descriptor
+        DWORD   OriginalFirstThunk;         // RVA to original unbound IAT (PIMAGE_THUNK_DATA)
+    } DUMMYUNIONNAME;
+    DWORD   TimeDateStamp;                  // 0 if not bound,
+    // -1 if bound, and real date\time stamp
+    //     in IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT (new BIND)
+    // O.W. date/time stamp of DLL bound to (Old BIND)
+
+    DWORD   ForwarderChain;                 // -1 if no forwarders
+    DWORD   Name;
+    DWORD   FirstThunk;                     // RVA to IAT (if bound this IAT has actual addresses)
+} __attribute__ ((aligned (1))) IMAGE_IMPORT_DESCRIPTOR;
+
+//
+// Import Format
+//
+
+typedef struct _IMAGE_IMPORT_BY_NAME {
+    WORD    Hint;
+    CHAR   Name[1];
+} IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;
+
+typedef struct _IMAGE_THUNK_DATA64 {
+    union {
+        ULONGLONG ForwarderString;  // PBYTE
+        ULONGLONG Function;         // PDWORD
+        ULONGLONG Ordinal;
+        ULONGLONG AddressOfData;    // PIMAGE_IMPORT_BY_NAME
+    } u1;
+} __attribute__ ((aligned (8))) IMAGE_THUNK_DATA64;
+typedef IMAGE_THUNK_DATA64 * PIMAGE_THUNK_DATA64;
+
+typedef struct _IMAGE_THUNK_DATA32 {
+    union {
+        DWORD ForwarderString;      // PBYTE
+        DWORD Function;             // PDWORD
+        DWORD Ordinal;
+        DWORD AddressOfData;        // PIMAGE_IMPORT_BY_NAME
+    } u1;
+} __attribute__ ((aligned (1))) IMAGE_THUNK_DATA32;
+typedef IMAGE_THUNK_DATA32 * PIMAGE_THUNK_DATA32;
+
+#define IMAGE_ORDINAL_FLAG64 0x8000000000000000
+#define IMAGE_ORDINAL_FLAG32 0x80000000
+#define IMAGE_ORDINAL64(Ordinal) (Ordinal & 0xffff)
+#define IMAGE_ORDINAL32(Ordinal) (Ordinal & 0xffff)
+#define IMAGE_SNAP_BY_ORDINAL64(Ordinal) ((Ordinal & IMAGE_ORDINAL_FLAG64) != 0)
+#define IMAGE_SNAP_BY_ORDINAL32(Ordinal) ((Ordinal & IMAGE_ORDINAL_FLAG32) != 0)
+
+
+#endif //QEMU_ANDROID_WINNT_H

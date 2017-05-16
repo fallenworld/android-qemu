@@ -6,7 +6,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <stdio.h>
-#include "debugConfig.h"
+#include "debug.h"
 
 int main()
 {

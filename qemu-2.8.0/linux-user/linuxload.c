@@ -3,6 +3,7 @@
 #include "qemu/osdep.h"
 
 #include "qemu.h"
+#include "android/android.h"
 
 #define NGROUPS 32
 
@@ -159,6 +160,10 @@ int loader_exec(int fdexec, const char *filename, char **argv, char **envp,
         {
             //PE格式文件
             retval = load_pe_binary(bprm, infop);
+            if (retval < 0)
+            {
+                exit(-1);
+            }
         }
         else
         {
